@@ -1,28 +1,31 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Any
+from pydantic import BaseModel, Field
 
 
-class Settings(BaseSettings):
-    app_name: str = "amzn-stock-agent"
-    app_env: str = "dev"
-    log_level: str = "INFO"
-
-    openai_api_key: str
-    openai_model: str = "gpt-4o-mini"
-
-    langfuse_public_key: str | None = None
-    langfuse_secret_key: str | None = None
-    langfuse_base_url: str = "https://cloud.langfuse.com"
-
-    vector_store_path: str = "./data/vectorstore"
-    docs_path: str = "./data/docs"
-
-    default_ticker: str = "AMZN"
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
+class InvocationInput(BaseModel):
+    query: str = Field(..., min_length=1)
+    user_id: str | None = None
+    session_id: str | None = None
 
 
-settings = Settings()
+class InvocationConfig(BaseModel):
+    stream_mode: str = "updates"
+    include_sources: bool = True
+    ticker_default: str = "AMZN"
+
+
+class InvocationRequest(BaseModel):
+    input: InvocationInput
+    config: InvocationConfig = InvocationConfig()
+
+
+class SourceItem(BaseModel):
+    source: str
+    page: int | None = None
+    excerpt: str | None = None
+
+
+class FinalResponse(BaseModel):
+    answer: str
+    sources: list[SourceItem] = []
+    tool_calls: list[dict[str, Any]] = []
