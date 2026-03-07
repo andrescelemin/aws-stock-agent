@@ -15,7 +15,7 @@ from app.retrieval.retriever import retrieve_relevant_chunks
 llm = ChatOpenAI(
     model=settings.openai_model,
     api_key=settings.openai_api_key,
-    temperature=0.1,
+    temperature=0.0,
 )
 
 
@@ -31,19 +31,19 @@ def classify_intent(query: str) -> str:
 
     if any(x in q for x in ["stock price right now", "current price", "right now"]):
         if any(y in q for y in ["ai business", "relevant information", "report"]):
-            return "hybrid"
+            return "hybrid_realtime"
         return "realtime"
 
-    if any(x in q for x in ["historical", "q4", "q3", "q2", "last year", "stock prices"]):
+    if any(x in q for x in ["historical", "q4", "q3", "q2", "q1", "last year", "stock prices"]):
         if any(y in q for y in ["predicted", "analysts", "report", "earnings"]):
-            return "hybrid"
+            return "hybrid_historical"
         return "historical"
 
     if any(x in q for x in ["office space", "north america", "annual report", "ai business", "analysts", "predicted"]):
         return "document"
 
     if any(x in q for x in ["relevant information", "researching amzn"]):
-        return "hybrid"
+        return "hybrid_realtime"
 
     return "realtime"
 
@@ -81,7 +81,7 @@ def initialize_state(state: AgentState) -> AgentState:
         "answer": None,
     }
 
-    if intent == "historical" or intent == "hybrid":
+    if intent in ["historical", "hybrid_historical"]:
         start_date, end_date = build_historical_range_from_query(query)
         new_state["start_date"] = start_date
         new_state["end_date"] = end_date
@@ -146,20 +146,51 @@ def retrieval_node(state: AgentState) -> AgentState:
 
 
 async def synthesize_node(state: AgentState) -> AgentState:
+    intent = state["intent"]
+    market_result = state.get("market_result")
+    retrieved_context = state.get("retrieved_context", [])
+
+    if intent == "historical" and market_result:
+        summary = market_result["summary"]
+        answer = (
+            f"For {market_result['ticker']} from {market_result['start_date']} to {market_result['end_date']}, "
+            f"the first close was ${summary['first_close']:.2f}, "
+            f"the last close was ${summary['last_close']:.2f}, "
+            f"the period high was ${summary['period_high']:.2f}, "
+            f"the period low was ${summary['period_low']:.2f}, "
+            f"and the average close was ${summary['average_close']:.2f}. "
+            f"The total return over the period was {summary['period_return_pct']:.2f}%."
+        )
+        return {**state, "answer": answer}
+
+    if intent == "realtime" and market_result:
+        answer = (
+            f"The current stock price for {market_result['ticker']} "
+            f"is ${market_result['price']:.2f} {market_result['currency']}."
+        )
+        return {**state, "answer": answer}
+
     prompt = f"""
 {SYSTEM_PROMPT}
+
+You must strictly use the provided data.
+Do not change years, quarters, date ranges, prices, or figures.
+If market data is present, use exactly those values.
+If retrieved context is present, summarize only from that context.
+If sources are missing, say so.
+Be concise and factual.
 
 User query:
 {state["query"]}
 
 Intent:
-{state["intent"]}
+{intent}
 
 Market data:
-{state.get("market_result")}
+{market_result}
 
 Retrieved context:
-{state.get("retrieved_context", [])}
+{retrieved_context}
 """
 
     response = await llm.ainvoke(prompt)
@@ -170,7 +201,9 @@ Retrieved context:
     }
 
 
-def route_after_initialize(state: AgentState) -> Literal["realtime", "historical", "document", "hybrid"]:
+def route_after_initialize(state: AgentState) -> Literal[
+    "realtime", "historical", "document", "hybrid_realtime", "hybrid_historical"
+]:
     return state["intent"]
 
 
@@ -181,6 +214,8 @@ def build_graph():
     graph.add_node("realtime", realtime_node)
     graph.add_node("historical", historical_node)
     graph.add_node("document", retrieval_node)
+    graph.add_node("hybrid_realtime_market", realtime_node)
+    graph.add_node("hybrid_historical_market", historical_node)
     graph.add_node("hybrid_retrieval", retrieval_node)
     graph.add_node("synthesize", synthesize_node)
 
@@ -193,13 +228,16 @@ def build_graph():
             "realtime": "realtime",
             "historical": "historical",
             "document": "document",
-            "hybrid": "historical",
+            "hybrid_realtime": "hybrid_realtime_market",
+            "hybrid_historical": "hybrid_historical_market",
         },
     )
 
     graph.add_edge("realtime", "synthesize")
-    graph.add_edge("historical", "hybrid_retrieval")
+    graph.add_edge("historical", "synthesize")
     graph.add_edge("document", "synthesize")
+    graph.add_edge("hybrid_realtime_market", "hybrid_retrieval")
+    graph.add_edge("hybrid_historical_market", "hybrid_retrieval")
     graph.add_edge("hybrid_retrieval", "synthesize")
     graph.add_edge("synthesize", END)
 
