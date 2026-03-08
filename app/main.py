@@ -34,7 +34,7 @@ async def invocations(
             f"start invocation session_id={session_id} user_id={payload.user_id} message={payload.message}"
         )
 
-        reply = run_agent(payload)
+        reply = await run_agent(payload)
 
         elapsed = round(time.time() - start, 3)
         logger.info(f"success invocation session_id={session_id} elapsed={elapsed}s")
