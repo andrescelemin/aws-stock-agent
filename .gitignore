@@ -11,3 +11,5 @@ terraform/terraform/
 terraform/terraform_tfstate/
 terraform/.DS_Store
 .DS_Store
+
+README.backup.md
