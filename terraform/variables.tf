@@ -33,3 +33,9 @@ variable "cognito_logout_urls" {
     "http://localhost:8080/logout"
   ]
 }
+
+variable "openai_api_key" {
+  description = "OpenAI API key for runtime"
+  type        = string
+  sensitive   = true
+}

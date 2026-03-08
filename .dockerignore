@@ -1,0 +1,10 @@
+﻿terraform/
+.terraform/
+**/*.tfstate
+**/*.tfstate.*
+__pycache__/
+*.pyc
+response.json
+payload.json
+.git
+.gitignore
