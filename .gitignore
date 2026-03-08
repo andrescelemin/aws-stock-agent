@@ -1,4 +1,4 @@
-response.json
+﻿response.json
 payload.json
 
 __pycache__/
@@ -7,3 +7,7 @@ __pycache__/
 terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.*
+terraform/terraform/
+terraform/terraform_tfstate/
+terraform/.DS_Store
+.DS_Store
