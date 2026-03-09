@@ -191,9 +191,21 @@ Possible next steps include:
 
 ---
 
+# Quick Test
+
+Run the service locally:
+
+```bash
+pip install -r requirements.txt
+$env:OPENAI_API_KEY="test-key"
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+---
+
 # Author
 
 Andrés Celemin Cardoso
 
 AI Engineer | Automation & Intelligent Systems
+
 
